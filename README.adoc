@@ -1,0 +1,142 @@
+= 2024 M2 Project: Symbolic Regression
+
+== Introduction
+
+This repository contains a Python project that performs symbolic regression on solutions of the 1D advection-diffusion PDE. The workflow proceeds as follows:
+
+1. **PDE Simulation**: Numerically solve the PDE with various initial conditions, generating solution snapshots over time.
+2. **Dimensionality Reduction**: Train a 1D convolutional autoencoder (ConvAE) to learn a lower-dimensional latent representation of the PDE snapshots.
+3. **Symbolic Regression**: Use a symbolic decoder (inspired by SINDy) to map the learned latent space back to the high-dimensional solution space, aiming to discover interpretable expressions.
+
+== Repository Structure
+
+Below is a brief description of the key files and folders in this repository:
+
+- `src/pde/`:
+  - `solver.py`: Implements the PDE time-stepping (upwind for advection, centered differences for diffusion).
+  - `initial_conditions.py`: Provides initial condition functions (e.g., Gaussian).
+
+- `src/data/`:
+  - `generation.py`: Runs PDE simulations for a range of parameters and stores the solution snapshots.
+  - `preprocessing.py`: Prepares data (e.g., creating PyTorch datasets).
+
+- `src/models/`:
+  - `autoencoder.py`: Defines a 1D convolutional autoencoder for dimensionality reduction.
+  - `symbolic_decoder.py`: Defines a symbolic decoder (SINDy-like), constructing expressions from a candidate function library.
+
+- `src/training/`:
+  - `autoencoder_trainer.py`: Trains the autoencoder model using MSE loss.
+  - `symbolic_decoder_trainer.py`: Trains the symbolic decoder with MSE + L1 regularization for sparsity.
+
+- `src/visualization/plots.py`:
+  - Utility functions to plot PDE solutions, reconstructions, and loss curves.
+
+- `main.py`:
+  - The main script tying everything together: PDE simulation, data preparation, autoencoder training, symbolic regression, and final visualization.
+
+== Installation
+
+This project requires Python 3.11 (or another version supported by PyTorch). 
+
+There are two primary ways to set up and run this project:
+
+=== 1. Local Virtual Environment
+
+**Create** a virtual environment:
+```bash
+python3.11 -m venv .venv
+```
+
+**Activate** the virtual environment:
+```bash
+source .venv/bin/activate
+```
+
+**Install** the required dependencies:
+```bash
+pip install --upgrade pip
+pip install -r requirements.txt
+```
+
+=== 2. Docker Container
+
+You can also use the provided Dockerfile to isolate the entire environment:
+
+. **Build** the Docker image (from the root of your project directory):
+```bash
+docker build -t symbolic-regression:latest .
+```
+
+. **Run** the container interactively with a Bash shell:
+```bash
+docker run -it --name symreg-container symbolic-regression:latest bash
+```
+
+Once you exit, the container will stop. To re-enter a stopped container, you can do:
+```bash
+docker start symreg-container
+docker exec -it symreg-container bash
+```
+
+== Usage
+
+If you installed locally (or are inside the Docker container), you can run:
+
+```bash
+python main.py
+```
+
+This script will:
+
+1. **Check** if CUDA or MPS is available (on Apple Silicon devices) and pick an appropriate device.
+2. **Generate PDE solutions** for multiple `(mu0, sigma0)` pairs.
+3. **Assemble the dataset**, then train (or load) the convolutional autoencoder.
+4. **Encode** the PDE snapshots into latent vectors.
+5. **Train** (or load) the symbolic decoder on these latent vectors to learn an explicit symbolic representation.
+6. **Visualize** reconstruction results, save plots, and print the discovered symbolic expressions.
+
+
+== Example Workflow
+
+1. **Generate PDE Solutions**:
+   - Solve the 1D advection-diffusion PDE with upwind (advection) and centered-diff (diffusion).
+   - Default parameters (can be edited in `main.py`) include `a = 1.0`, `D = 0.1`, and a Gaussian initial condition with varying means (`mu0_list`) and standard deviations (`sigma0_list`).
+   
+2. **Build the Dataset**:
+   - Gather PDE snapshots at certain time strides into a PyTorch `TensorDataset`.
+
+3. **Train Autoencoder**:
+   - The code checks if `autoencoder_weights.pth` exists.
+   - If not found, it trains the autoencoder using a Mean Squared Error (MSE) loss and saves the model weights after each epoch.
+   - A training loss curve is saved to `loss_plots/autoencoder_loss.png`.
+
+4. **Train Symbolic Decoder**:
+   - Once the PDE data is embedded into the latent space (via the trained autoencoder), the symbolic decoder attempts to learn a sparse combination of candidate functions (e.g., polynomials, sines, cosines, exponentials).
+   - Symbolic decoder weights are saved to `SINDy_weights.pth`.
+   - A symbolic decoder loss curve is saved to `loss_plots/symbolic_decoder_loss.png`.
+
+5. **Plot and Inspect**:
+   - Reconstructed solutions from both the autoencoder and symbolic decoder are saved in `autoencoder_plots/` and `SINDy_plots/`.
+   - The final extracted symbolic expressions (one per spatial grid index) are printed to the console.
+
+
+== Results and Files
+
+After running the pipeline, you should see:
+
+- **Autoencoder Plots**: 
+  - Stored under `autoencoder_plots/`.
+  - Compare original vs. reconstructed PDE snapshots at different times.
+- **Symbolic Decoder Plots**: 
+  - Stored under `SINDy_plots/`.
+  - Compare original PDE snapshots to the symbolic decoder reconstruction.
+- **Loss Curves**:
+  - In `loss_plots/autoencoder_loss.png` and `loss_plots/symbolic_decoder_loss.png`.
+- **Trained Models**:
+  - `autoencoder_weights.pth` (ConvAutoencoder state dict).
+  - `SINDy_weights.pth` (SymbolicDecoder state dict).
+
+== Contributors
+
+* https://github.com/giuliocrp[giuliocrp]
+* https://github.com/abdouwade1996[abdouwade1996]
